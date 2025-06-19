@@ -2,39 +2,31 @@ from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 import pandas as pd
 
-# Lista de nomes dos estádios
-estadios = [
-    "Maracanã",
-    "Estádio do Morumbi",
-    "Camp Nou",
-    "Old Trafford",
-    "Wembley Stadium",
-    "Allianz Arena",
-    "San Siro",
-    "Estádio da Luz",
-    "Estadio Monumental",
-    "Estadio Azteca"
-]
+#Carrega o CSV completo
+df_entrada = pd.read_csv("match_details.csv") 
+df_entrada = df_entrada.dropna(subset=["stadium"])
 
-# Inicializa o geocodificador com identificador
+#Inicializa o geolocalizador
 geolocator = Nominatim(user_agent="stadium_locator")
-# Adiciona delay automático
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 
-# Função para buscar localização
-
-
-def localizar(estadio):
+#Função que processa linha por linha
+def localizar_linha(row):
+    estadio = row["stadium"]
+    date = row["date"]
+    time = row["time"]
+    
     try:
         location = geocode(estadio)
         if location:
-            # Extrair cidade e país
             address = location.raw.get("display_name", "")
             components = address.split(", ")
             cidade = components[-4] if len(components) >= 4 else None
             pais = components[-1] if len(components) >= 1 else None
 
             return {
+                "Date": date,
+                "Time": time,
                 "Estádio": estadio,
                 "Latitude": location.latitude,
                 "Longitude": location.longitude,
@@ -46,6 +38,8 @@ def localizar(estadio):
         pass
 
     return {
+        "Date": date,
+        "Time": time,
         "Estádio": estadio,
         "Latitude": None,
         "Longitude": None,
@@ -54,13 +48,10 @@ def localizar(estadio):
         "Endereço completo": None
     }
 
+#Aplica a função a cada linha
+resultados = [localizar_linha(row) for _, row in df_entrada.iterrows()]
 
-# Processa cada estádio
-resultados = [localizar(nome) for nome in estadios]
-
-# Converte em DataFrame e exibe
-df = pd.DataFrame(resultados)
-print(df)
-
-# Salva em CSV (opcional)
-df.to_csv("localizacao_estadios.csv", index=False)
+#Converte em DataFrame e salva
+df_resultados = pd.DataFrame(resultados)
+print(df_resultados)
+df_resultados.to_csv("localizacao_estadios.csv", index=False)
