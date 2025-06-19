@@ -30,7 +30,9 @@ def localizar_linha(row):
                 "Estádio": estadio,
                 "Cidade": cidade,
                 "País": pais,
-                "Endereço completo": address
+                "Endereço completo": address,
+                "Latitude": location.latitude,
+                "Longitude": location.longitude
             }
     except:
         pass
@@ -41,7 +43,9 @@ def localizar_linha(row):
         "Estádio": estadio,
         "Cidade": None,
         "País": None,
-        "Endereço completo": None
+        "Endereço completo": None,
+        "Latitude": None,
+        "Longitude": None
     }
 
 #Aplica a função a cada linha
