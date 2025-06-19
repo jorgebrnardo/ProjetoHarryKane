@@ -2,7 +2,7 @@ from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 import pandas as pd
 
-#Carrega o CSV completo
+#Carrega o CSV
 df_entrada = pd.read_csv("match_links.csv") 
 df_entrada = df_entrada.dropna(subset=["stadium"])
 
