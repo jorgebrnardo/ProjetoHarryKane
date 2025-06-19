@@ -3,7 +3,7 @@ from geopy.extra.rate_limiter import RateLimiter
 import pandas as pd
 
 #Carrega o CSV completo
-df_entrada = pd.read_csv("match_details.csv") 
+df_entrada = pd.read_csv("match_links.csv") 
 df_entrada = df_entrada.dropna(subset=["stadium"])
 
 #Inicializa o geolocalizador
@@ -28,8 +28,6 @@ def localizar_linha(row):
                 "Date": date,
                 "Time": time,
                 "Estádio": estadio,
-                "Latitude": location.latitude,
-                "Longitude": location.longitude,
                 "Cidade": cidade,
                 "País": pais,
                 "Endereço completo": address
@@ -41,8 +39,6 @@ def localizar_linha(row):
         "Date": date,
         "Time": time,
         "Estádio": estadio,
-        "Latitude": None,
-        "Longitude": None,
         "Cidade": None,
         "País": None,
         "Endereço completo": None
