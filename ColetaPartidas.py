@@ -15,8 +15,17 @@ links = soup.find_all('a', class_='ergebnis-link')
 base_url = "https://www.transfermarkt.com.br"
 full_links = [base_url + link['href'] for link in links if link.get('href')]
 
-# Salva em CSV
-df = pd.DataFrame(full_links, columns=["match_link"])
+# Cria DataFrame com todos os campos que serão preenchidos posteriormente
+data = []
+for link in full_links:
+    data.append({
+        "match_link": link,
+        "date": "",
+        "time": "",
+        "stadium": ""
+    })
+
+df = pd.DataFrame(data)
 df.to_csv(r"./match_links.csv", index=False)
 
 print("Links salvos com sucesso!")

@@ -1,34 +1,81 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import undetected_chromedriver as uc
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
+import random
+import os
 
-# Caminho do CSV com os links
+# Caminhos
 csv_path = r"./match_links.csv"
-df = pd.read_csv(csv_path)
+output_path = r"./match_links.csv"
 
-results = []
+# Carrega todos os links
+df_links = pd.read_csv(csv_path)
 
-# Configuração do Selenium (modo invisível e rápido)
-options = Options()
+# Cria coluna de link completo
+df_links["full_link"] = df_links["match_link"].apply(
+    lambda x: "https://www.transfermarkt.com.br" + x if x.startswith("/") else x
+)
+
+# Filtra apenas linhas com valores faltantes
+to_scrape = df_links[
+    (df_links['date'].isna()) |
+    (df_links['time'].isna()) |
+    (df_links['stadium'].isna()) |
+    (df_links['date'] == "") |
+    (df_links['time'] == "") |
+    (df_links['stadium'] == "")
+].copy().head(5)
+
+if to_scrape.empty:
+    print("✅ Nada a fazer. Nenhuma linha pendente.")
+    exit()
+
+# Configuração do Chrome
+options = uc.ChromeOptions()
 options.headless = True
 options.add_argument("--window-size=1920,1080")
-options.add_argument('--no-sandbox')
+options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
 options.add_argument("user-agent=Mozilla/5.0")
-options.add_argument("--log-level=3")  # Reduz logs
 
-driver = webdriver.Chrome(options=options)
+driver = uc.Chrome(options=options)
 
-# VARREDURA DOS LINKS
-for link in df['match_link']:
+def simulate_user_behavior(driver):
     try:
-        full_link = "https://www.transfermarkt.com.br" + link if link.startswith("/") else link
-        driver.get(full_link)
-        time.sleep(1.5)  # tempo mínimo necessário para o conteúdo carregar
+        actions = ActionChains(driver)
+        actions.move_by_offset(100, 100).perform()
+        time.sleep(0.5)
+        actions.move_by_offset(50, 0).perform()
+        time.sleep(0.5)
+        actions.send_keys(Keys.F1).perform()
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"⚠️ Erro simulando comportamento do usuário: {e}")
 
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
+def get_page_with_retry(driver, url, retries=5):
+    for attempt in range(retries):
+        try:
+            driver.get(url)
+            time.sleep(random.uniform(2, 6))
+            simulate_user_behavior(driver)
+            return driver.page_source
+        except Exception as e:
+            print(f"⚠️ Retry {attempt+1}: {url} - {e}")
+            time.sleep(10 * (attempt + 1))
+    return None
+
+# Coleta os dados
+for i, row in to_scrape.iterrows():
+    link = row["full_link"]
+    try:
+        html = get_page_with_retry(driver, link)
+        if html is None:
+            raise Exception("❌ Falha ao carregar a página.")
+
+        soup = BeautifulSoup(html, 'html.parser')
         game_data = soup.find('div', class_='sb-spieldaten')
 
         date_text, time_text, stadium = "", "", ""
@@ -37,15 +84,14 @@ for link in df['match_link']:
             date_p = game_data.find('p', class_='sb-datum hide-for-small')
             if date_p:
                 for a in date_p.find_all('a'):
-                    href = a.get('href', '')
-                    if '/datum/' in href:
+                    if '/datum/' in a.get('href', ''):
                         date_text = a.text.strip()
                         break
                 parts = date_p.get_text(separator="|").split("|")
-                if parts:
-                    possible_time = parts[-1].strip()
-                    if ":" in possible_time:
-                        time_text = possible_time
+                for part in parts:
+                    if ":" in part:
+                        time_text = part.strip()
+                        break
 
             extra_info = game_data.find('p', class_='sb-zusatzinfos')
             if extra_info:
@@ -53,41 +99,16 @@ for link in df['match_link']:
                 if stadium_link:
                     stadium = stadium_link.text.strip()
 
-        results.append({
-            "link": full_link,
-            "date": date_text,
-            "time": time_text,
-            "stadium": stadium
-        })
+        df_links.loc[df_links["full_link"] == link, ["date", "time", "stadium"]] = [date_text, time_text, stadium]
 
-        print(f"✅ {full_link}")
+        print(f"✅ Atualizado: {link}")
 
     except Exception as e:
-        print(f"❌ {link} - erro: {str(e)}")
-        results.append({
-            "link": link,
-            "date": "",
-            "time": "",
-            "stadium": ""
-        })
+        print(f"❌ Erro ao processar {link} - {e}")
 
-driver.quit()
+    time.sleep(random.uniform(2, 5))
 
-# Salva o CSV
-csv_output = r"./match_details.csv"
-results_df = pd.DataFrame(results)
-results_df.to_csv(csv_output, index=False)
-print("📁 CSV salvo com sucesso.")
-
-# VARREDURA FINAL DE VALORES VAZIOS
-empty_rows = results_df[
-    (results_df['date'] == "") |
-    (results_df['time'] == "") |
-    (results_df['stadium'] == "")
-]
-
-if empty_rows.empty:
-    print("✅ Todos os registros foram extraídos com sucesso.")
-else:
-    print(f"⚠️ {len(empty_rows)} registros com campos vazios encontrados:")
-    print(empty_rows[['link', 'date', 'time', 'stadium']])
+# Remove coluna auxiliar e salva
+df_links.drop(columns=["full_link"], inplace=True)
+df_links.to_csv(output_path, index=False)
+print("📥 CSV atualizado com novos dados.")
